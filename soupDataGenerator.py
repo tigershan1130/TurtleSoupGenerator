@@ -23,8 +23,7 @@ openAI_api_key = config["OpenAI"]["api_key"]
 deepseek_api_key = config["DeepSeek"]["api_key"]
 deepseek_api_base = config["DeepSeek"].get("api_base", "https://api.deepseek.com/v1")
 deepseek_model_name = config["DeepSeek"].get("model", "deepseek-reasoner")
-deepseek_template = config["Template"].get("template_json", "scored_riddles.json")
-deepseek_treshold = config["Template"].getfloat("threshold", 12.5)
+
 num_mutations = 5
 
 # ---------------- 基本设定 ---------------- #
@@ -161,7 +160,7 @@ async def main():
         if existing_docs and existing_docs["ids"]:
             vector_db._collection.delete(ids=existing_docs["ids"])
 
-    templates = load_prompt_file(args.prompt_json, threshold=deepseek_treshold)
+    templates = load_prompt_file(args.prompt_json, threshold=12.5)
     existing_docs = vector_db._collection.get()
     existing_by_source = {}
     for meta in existing_docs.get("metadatas", []):

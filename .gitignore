@@ -1,3 +1,5 @@
  
 config.ini
 /venv
+/puzzle_db
+/__pycache__
