@@ -69,22 +69,31 @@ def build_puzzle_prompt(subject: str, variation_seed: int) -> ChatPromptTemplate
         \"问题4:回答4\",
         \"问题5:回答5\"
     ],
-    \"clues\": [
-        \"线索1\",
-        \"线索2\",
-        \"线索3\",
-        \"线索4\",
-        \"线索5\",
-        \"线索6\",
-        \"线索7\",
-        \"线索8\",
-        \"线索9\",
-        \"线索10\"
-    ],
     \"difficulty\": 1 (1: 简单， 2: 中等， 3: 很难推理)
 }```"""),
         HumanMessage(content=f"""请根据以下模板生成一题，保留核心逻辑，但完全改变故事背景、角色设定与线索方式：{subject} 变化提示：{variation_seed}""")
     ])
+
+
+def build_clue_prompt(soup_base: str, num_clues: int = 10) -> ChatPromptTemplate:
+    """根据汤底生成线索的 Prompt。"""
+    return ChatPromptTemplate.from_messages([
+        SystemMessage(content="""你是一个逻辑校验助手，负责根据给定的汤底生成有助于玩家推理的线索。每条线索必须能够从汤底推导并附带简短理由。"""),
+        HumanMessage(content=f"""汤底如下：\n{soup_base}\n请提供{num_clues}条线索，并按以下JSON格式返回：\n```json\n{{\n  \"clues\": [\n    {{\"clue\": \"线索1\", \"reason\": \"理由1\"}},\n    {{\"clue\": \"线索2\", \"reason\": \"理由2\"}}\n  ]\n}}\n```""")
+    ])
+
+
+async def verify_clue(clue: str, soup_base: str) -> bool:
+    """验证单条线索是否能从汤底推出。"""
+    messages = ChatPromptTemplate.from_messages([
+        SystemMessage(content="""请判断给定的线索是否能从汤底推出。只回答 yes 或 no。"""),
+        HumanMessage(content=f"""汤底：{soup_base}\n线索：{clue}\n这个线索能从汤底推出吗？""")
+    ]).format_messages()
+    try:
+        result = await llm.ainvoke(messages)
+        return "yes" in result.content.strip().lower()
+    except Exception:
+        return False
 
 # ---------------- Prompt 文件读取 ---------------- #
 def load_prompt_file(path: str, threshold: float = 12.5) -> List[dict]:
@@ -179,13 +188,31 @@ async def main():
                         content = content.strip("` \n")
                         content = content[content.find("{") :]
                     data = json.loads(content)
+
+                    # 第二次调用模型生成线索
+                    clue_messages = build_clue_prompt(data["soupBase"]).format_messages()
+                    clue_result = await llm.ainvoke(clue_messages)
+                    clue_content = clue_result.content.strip()
+                    if clue_content.startswith("```json"):
+                        clue_content = clue_content.strip("` \n")
+                        clue_content = clue_content[clue_content.find("{") :]
+                    clue_data = json.loads(clue_content)
+                    raw_clues = clue_data.get("clues", [])
+                    generated_clues = []
+                    for c in raw_clues:
+                        clue_text = c.get("clue") if isinstance(c, dict) else c
+                        if not clue_text:
+                            continue
+                        if await verify_clue(clue_text, data["soupBase"]):
+                            generated_clues.append(clue_text)
+
                     puzzle = {
                         "id": str(uuid.uuid4())[:8],
                         "name": data["name"],
                         "soupBase": data["soupBase"],
                         "soupFace": data["soupFace"],
                         "fewShots": data["fewShots"],
-                        "clues": data["clues"],
+                        "clues": generated_clues,
                         "difficulty": data.get("difficulty", 2),
                         "sourceID": source_id
                     }
