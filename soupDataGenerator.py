@@ -46,7 +46,7 @@ vector_db = Chroma(
 def build_puzzle_prompt(subject: str, variation_seed: int) -> ChatPromptTemplate:
     return ChatPromptTemplate.from_messages([
         SystemMessage(content="""你是一个擅长设计逻辑推理谜题（海龟汤类型）的助手。\"海龟汤\"是一种需要玩家通过不断提问来还原真相的解谜游戏。玩家只能得到\"是 / 不是 / 不知道\"这类简单回应。题目通常描述一个看似怪异或意外的场景，背后却隐藏着一个合乎逻辑的真相, 请保持所有推理在一个思维链。
-注意：虽然这个游戏叫\"海龟汤\",但题目本身不需要与\"海龟\"有关。题材设定是悬疑恐怖题材。题目起码需要10个以上线索才能破解汤底。
+注意：虽然这个游戏叫\"海龟汤\",但题目本身不需要与\"海龟\"有关。题材设定是悬疑恐怖题材。题目起码需要10个以上线索才能破解汤底。每条线索都必须是由 soupBase 推导出的具体且不重复的事实，能够帮助推断出真相但不能直接透露答案。可选地为每条线索提供 `clueExplanation` 字段以说明其如何指向 soupBase。
 好的海龟汤谜题通常具有以下几个特征:
 1.信息不对称但合理:汤面提供的信息能激发推理兴趣，留下关键但模糊的线索;
 2.反常设定但逻辑自治:谜底设定可能很反常(比如克隆人、心理暗示)，但应该有内部合理性;
@@ -70,16 +70,16 @@ def build_puzzle_prompt(subject: str, variation_seed: int) -> ChatPromptTemplate
         \"问题5:回答5\"
     ],
     \"clues\": [
-        \"线索1\",
-        \"线索2\",
-        \"线索3\",
-        \"线索4\",
-        \"线索5\",
-        \"线索6\",
-        \"线索7\",
-        \"线索8\",
-        \"线索9\",
-        \"线索10\"
+        {\"text\": \"线索1\", \"clueExplanation\": \"解释线索1如何指向汤底\"},
+        {\"text\": \"线索2\", \"clueExplanation\": \"解释线索2如何指向汤底\"},
+        {\"text\": \"线索3\", \"clueExplanation\": \"解释线索3如何指向汤底\"},
+        {\"text\": \"线索4\", \"clueExplanation\": \"解释线索4如何指向汤底\"},
+        {\"text\": \"线索5\", \"clueExplanation\": \"解释线索5如何指向汤底\"},
+        {\"text\": \"线索6\", \"clueExplanation\": \"解释线索6如何指向汤底\"},
+        {\"text\": \"线索7\", \"clueExplanation\": \"解释线索7如何指向汤底\"},
+        {\"text\": \"线索8\", \"clueExplanation\": \"解释线索8如何指向汤底\"},
+        {\"text\": \"线索9\", \"clueExplanation\": \"解释线索9如何指向汤底\"},
+        {\"text\": \"线索10\", \"clueExplanation\": \"解释线索10如何指向汤底\"}
     ],
     \"difficulty\": 1 (1: 简单， 2: 中等， 3: 很难推理)
 }```"""),
