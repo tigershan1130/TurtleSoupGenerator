@@ -82,6 +82,19 @@ def build_clue_prompt(soup_base: str, num_clues: int = 10) -> ChatPromptTemplate
     ])
 
 
+async def build_clue_from_step(step: str) -> str:
+    """将原始推理步骤改写成简洁线索。"""
+    messages = ChatPromptTemplate.from_messages([
+        SystemMessage(content="""根据给定的推理步骤，改写成一句简洁的线索供玩家推理。可以省略直接指向真相的描述。"""),
+        HumanMessage(content=f"""推理步骤：{step}\n线索：""")
+    ]).format_messages()
+    try:
+        result = await llm.ainvoke(messages)
+        return result.content.strip()
+    except Exception:
+        return ""
+
+
 async def verify_clue(clue: str, soup_base: str) -> bool:
     """验证单条线索是否能从汤底推出。"""
     messages = ChatPromptTemplate.from_messages([
@@ -196,14 +209,22 @@ async def main():
                         clue_content = clue_content.strip("` \n")
                         clue_content = clue_content[clue_content.find("{") :]
                     clue_data = json.loads(clue_content)
-                    raw_clues = clue_data.get("clues", [])
+                    raw_steps = []
+                    for c in clue_data.get("clues", []):
+                        if isinstance(c, dict):
+                            step_text = c.get("reason") or c.get("clue") or ""
+                        else:
+                            step_text = c
+                        if step_text:
+                            raw_steps.append(step_text)
+
                     generated_clues = []
-                    for c in raw_clues:
-                        clue_text = c.get("clue") if isinstance(c, dict) else c
-                        if not clue_text:
+                    for step in raw_steps:
+                        formatted = await build_clue_from_step(step)
+                        if not formatted:
                             continue
-                        if await verify_clue(clue_text, data["soupBase"]):
-                            generated_clues.append(clue_text)
+                        if await verify_clue(formatted, data["soupBase"]):
+                            generated_clues.append(formatted)
 
                     puzzle = {
                         "id": str(uuid.uuid4())[:8],
