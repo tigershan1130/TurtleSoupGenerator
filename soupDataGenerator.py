@@ -209,7 +209,16 @@ async def main():
                         clue_content = clue_content.strip("` \n")
                         clue_content = clue_content[clue_content.find("{") :]
                     clue_data = json.loads(clue_content)
-                    raw_steps = [c.get("reason") if isinstance(c, dict) else c for c in clue_data.get("clues", [])]
+                    
+                    raw_steps = []
+                    for c in clue_data.get("clues", []):
+                        if isinstance(c, dict):
+                            step_text = c.get("reason") or c.get("clue") or ""
+                        else:
+                            step_text = c
+                        if step_text:
+                            raw_steps.append(step_text)
+                            
                     generated_clues = []
                     for step in raw_steps:
                         formatted = await build_clue_from_step(step)
