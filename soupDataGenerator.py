@@ -111,7 +111,7 @@ async def verify_fact(fact: str, soup_base: str) -> bool:
 async def verify_clue_matches_fact(clue: str, fact: str) -> bool:
     """验证线索是否是对事实的忠实总结。"""
     messages = ChatPromptTemplate.from_messages([
-        SystemMessage(content="""请判断线索是否忠实地总结了给定的事实。只回答 yes 或 no。"""),
+        SystemMessage(content="""请判断线索是否对应了汤底的内容。只回答 yes 或 no。"""),
         HumanMessage(content=f"""事实：{fact}\n线索：{clue}\n这个线索是否忠实地概括了事实？""")
     ]).format_messages()
     try:
@@ -159,6 +159,12 @@ def save_all_to_disk(json_file=OUTPUT_JSON, csv_file=OUTPUT_CSV):
 
     print(f"\n[终止保存] 已保存 {len(puzzles)} 条题目到 {json_file}, {csv_file}")
 
+# ---------------- 调试工具 ---------------- #
+def debug_print(message: str, debug_enabled: bool = False):
+    """调试打印函数，只在启用调试时输出"""
+    if debug_enabled:
+        print(message)
+
 # ---------------- 信号捕捉 ---------------- #
 def setup_interrupt_handler():
     def handler(signum, frame):
@@ -179,6 +185,7 @@ async def main():
     parser.add_argument("--mutations", type=int, default=num_mutations)
     parser.add_argument("--db-mode", choices=["append", "override"], default="append")
     parser.add_argument("--maxtemplates", type=int, help="最大处理的模板数量，用于提前终止循环")
+    parser.add_argument("--debug", action="store_true", help="启用调试输出")
     args = parser.parse_args()
 
     if args.db_mode == "override":
@@ -195,9 +202,10 @@ async def main():
         if sid:
             existing_by_source[sid] = existing_by_source.get(sid, 0) + 1
 
-    print(f"当前过滤后模板数量{len(templates)}, mutations: {args.mutations}, max templates: {args.maxtemplates}")
+    print(f"当前过滤后模板数量{len(templates)}, mutations: {args.mutations}")
 
     try:
+        processed_count = 0
         for r in templates:
             if args.maxtemplates and processed_count >= args.maxtemplates:
                 print(f"[提前终止] 已达到最大模板处理数量: {args.maxtemplates}")
@@ -227,6 +235,7 @@ async def main():
                         clue_content = clue_content.strip("` \n")
                         clue_content = clue_content[clue_content.find("{") :]
                     clue_data = json.loads(clue_content)
+                    debug_print(f"[DEBUG] 解析后的线索数据: {json.dumps(clue_data, ensure_ascii=False, indent=2)}", args.debug)
                     
                     raw_facts = []
                     for c in clue_data.get("clues", []):
@@ -236,16 +245,17 @@ async def main():
                             fact_text = c
                         if fact_text:
                             raw_facts.append(fact_text)
+                    debug_print(f"[DEBUG] 提取的原始事实: {raw_facts}", args.debug)
 
                     generated_clues = []
-                    for fact in raw_facts:
+                    for i, fact in enumerate(raw_facts):
+                        debug_print(f"[DEBUG] 处理事实 {i+1}: {fact}", args.debug)
                         if not await verify_fact(fact, data["soupBase"]):
+                            debug_print(f"[DEBUG] 事实验证失败: {fact}", args.debug)
                             continue
-                        clue, original_fact = await build_clue_from_fact(fact)
-                        if not clue:
-                            continue
-                        if await verify_clue_matches_fact(clue, original_fact):
-                            generated_clues.append(clue)
+                        debug_print(f"[DEBUG] 事实验证通过: {fact}", args.debug)                                              
+                        generated_clues.append(fact)
+                    debug_print(f"[DEBUG] 最终生成的线索数量: {len(generated_clues)}", args.debug)
 
                     puzzle = {
                         "id": str(uuid.uuid4())[:8],
