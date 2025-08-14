@@ -82,24 +82,37 @@ def build_clue_prompt(soup_base: str, num_clues: int = 10) -> ChatPromptTemplate
     ])
 
 
-async def build_clue_from_fact(fact: str) -> str:
-    """将汤底事实改写成简洁线索。"""
+async def build_clue_from_fact(fact: str) -> tuple[str, str]:
+    """将汤底事实改写成简洁线索，同时返回原始事实。"""
     messages = ChatPromptTemplate.from_messages([
         SystemMessage(content="""根据给定的汤底事实，改写成一句简洁的线索供玩家推理。可以省略直接指向真相的描述。"""),
         HumanMessage(content=f"""汤底事实：{fact}\n线索：""")
     ]).format_messages()
     try:
         result = await llm.ainvoke(messages)
-        return result.content.strip()
+        return result.content.strip(), fact
     except Exception:
-        return ""
+        return "", fact
 
 
-async def verify_clue(clue: str, soup_base: str) -> bool:
-    """验证单条线索是否能从汤底事实推出。"""
+async def verify_fact(fact: str, soup_base: str) -> bool:
+    """验证单条事实是否能从汤底事实推出。"""
     messages = ChatPromptTemplate.from_messages([
-        SystemMessage(content="""请判断给定的线索是否能从汤底推出。只回答 yes 或 no。"""),
-        HumanMessage(content=f"""汤底：{soup_base}\n线索：{clue}\n这个线索能从汤底推出吗？""")
+        SystemMessage(content="""请判断给定的事实是否能从汤底推出。只回答 yes 或 no。"""),
+        HumanMessage(content=f"""汤底：{soup_base}\n事实：{fact}\n这个事实能从汤底推出吗？""")
+    ]).format_messages()
+    try:
+        result = await llm.ainvoke(messages)
+        return "yes" in result.content.strip().lower()
+    except Exception:
+        return False
+
+
+async def verify_clue_matches_fact(clue: str, fact: str) -> bool:
+    """验证线索是否是对事实的忠实总结。"""
+    messages = ChatPromptTemplate.from_messages([
+        SystemMessage(content="""请判断线索是否忠实地总结了给定的事实。只回答 yes 或 no。"""),
+        HumanMessage(content=f"""事实：{fact}\n线索：{clue}\n这个线索是否忠实地概括了事实？""")
     ]).format_messages()
     try:
         result = await llm.ainvoke(messages)
@@ -221,11 +234,13 @@ async def main():
 
                     generated_clues = []
                     for fact in raw_facts:
-                        formatted = await build_clue_from_fact(fact)
-                        if not formatted:
+                        if not await verify_fact(fact, data["soupBase"]):
                             continue
-                        if await verify_clue(formatted, data["soupBase"]):
-                            generated_clues.append(formatted)
+                        clue, original_fact = await build_clue_from_fact(fact)
+                        if not clue:
+                            continue
+                        if await verify_clue_matches_fact(clue, original_fact):
+                            generated_clues.append(clue)
 
                     puzzle = {
                         "id": str(uuid.uuid4())[:8],
