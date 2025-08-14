@@ -77,16 +77,16 @@ def build_puzzle_prompt(subject: str, variation_seed: int) -> ChatPromptTemplate
 def build_clue_prompt(soup_base: str, num_clues: int = 10) -> ChatPromptTemplate:
     """根据汤底生成线索的 Prompt。"""
     return ChatPromptTemplate.from_messages([
-        SystemMessage(content="""你是一个逻辑校验助手，负责根据给定的汤底生成有助于玩家推理的线索。每条线索必须能够从汤底推导并附带简短理由。"""),
-        HumanMessage(content=f"""汤底如下：\n{soup_base}\n请提供{num_clues}条线索，并按以下JSON格式返回：\n```json\n{{\n  \"clues\": [\n    {{\"clue\": \"线索1\", \"reason\": \"理由1\"}},\n    {{\"clue\": \"线索2\", \"reason\": \"理由2\"}}\n  ]\n}}\n```""")
+        SystemMessage(content="""你是一个逻辑校验助手，负责根据给定的汤底生成有助于玩家推理的线索。每条线索必须能够从汤底推导并附带对应的事实。"""),
+        HumanMessage(content=f"""汤底如下：\n{soup_base}\n请提供{num_clues}条线索，并按以下JSON格式返回：\n```json\n{{\n  \"clues\": [\n    {{\"clue\": \"线索1\", \"fact\": \"事实1\"}},\n    {{\"clue\": \"线索2\", \"fact\": \"事实2\"}}\n  ]\n}}\n```""")
     ])
 
 
-async def build_clue_from_step(step: str) -> str:
-    """将原始推理步骤改写成简洁线索。"""
+async def build_clue_from_fact(fact: str) -> str:
+    """将汤底事实改写成简洁线索。"""
     messages = ChatPromptTemplate.from_messages([
-        SystemMessage(content="""根据给定的推理步骤，改写成一句简洁的线索供玩家推理。可以省略直接指向真相的描述。"""),
-        HumanMessage(content=f"""推理步骤：{step}\n线索：""")
+        SystemMessage(content="""根据给定的汤底事实，改写成一句简洁的线索供玩家推理。可以省略直接指向真相的描述。"""),
+        HumanMessage(content=f"""汤底事实：{fact}\n线索：""")
     ]).format_messages()
     try:
         result = await llm.ainvoke(messages)
@@ -96,7 +96,7 @@ async def build_clue_from_step(step: str) -> str:
 
 
 async def verify_clue(clue: str, soup_base: str) -> bool:
-    """验证单条线索是否能从汤底推出。"""
+    """验证单条线索是否能从汤底事实推出。"""
     messages = ChatPromptTemplate.from_messages([
         SystemMessage(content="""请判断给定的线索是否能从汤底推出。只回答 yes 或 no。"""),
         HumanMessage(content=f"""汤底：{soup_base}\n线索：{clue}\n这个线索能从汤底推出吗？""")
@@ -210,18 +210,18 @@ async def main():
                         clue_content = clue_content[clue_content.find("{") :]
                     clue_data = json.loads(clue_content)
                     
-                    raw_steps = []
+                    raw_facts = []
                     for c in clue_data.get("clues", []):
                         if isinstance(c, dict):
-                            step_text = c.get("reason") or c.get("clue") or ""
+                            fact_text = c.get("fact") or c.get("clue") or ""
                         else:
-                            step_text = c
-                        if step_text:
-                            raw_steps.append(step_text)
-                            
+                            fact_text = c
+                        if fact_text:
+                            raw_facts.append(fact_text)
+
                     generated_clues = []
-                    for step in raw_steps:
-                        formatted = await build_clue_from_step(step)
+                    for fact in raw_facts:
+                        formatted = await build_clue_from_fact(fact)
                         if not formatted:
                             continue
                         if await verify_clue(formatted, data["soupBase"]):
