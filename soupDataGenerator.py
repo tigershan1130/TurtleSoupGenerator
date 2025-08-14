@@ -178,6 +178,7 @@ async def main():
     parser.add_argument("--prompt-json", type=str, default="scored_riddles.json")
     parser.add_argument("--mutations", type=int, default=num_mutations)
     parser.add_argument("--db-mode", choices=["append", "override"], default="append")
+    parser.add_argument("--maxtemplates", type=int, help="最大处理的模板数量，用于提前终止循环")
     args = parser.parse_args()
 
     if args.db_mode == "override":
@@ -194,10 +195,14 @@ async def main():
         if sid:
             existing_by_source[sid] = existing_by_source.get(sid, 0) + 1
 
-    print(f"当前过滤后模板数量{len(templates)}, mutations: {args.mutations}")
+    print(f"当前过滤后模板数量{len(templates)}, mutations: {args.mutations}, max templates: {args.maxtemplates}")
 
     try:
         for r in templates:
+            if args.maxtemplates and processed_count >= args.maxtemplates:
+                print(f"[提前终止] 已达到最大模板处理数量: {args.maxtemplates}")
+                break
+            processed_count += 1
             source_id = r.get("id", str(uuid.uuid4())[:8])
             template = json.dumps({"name": r.get("name", ""), "soupFace": r.get("soupFace", ""), "soupBase": r.get("soupBase", "")}, ensure_ascii=False)
             current_count = existing_by_source.get(source_id, 0)
