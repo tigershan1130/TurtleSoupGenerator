@@ -46,15 +46,11 @@ python soupDataGenerator.py --num 5 --json custom.json --csv custom.csv
 ### Database Modes and Prompt Selection
 
 ```bash
-# Append mode: Add new puzzles starting from prompt index 0
-python soupDataGenerator.py --num 5 --db-mode append
-
 # Override mode: Clear database and generate puzzles starting from prompt index 10
-python soupDataGenerator.py --num 5 --start 10 --db-mode override
-
-
-# Append mode with custom start index: Add new puzzles starting from prompt index 20
-python soupDataGenerator.py --num 5 --start 20 --db-mode append
+# based on original soup how many mutations we will have so 1 base soup with 5 mutations means 5. 
+# db-mode both with append and override.
+# maxtemplates is early termination. 
+python .\soupDataGenerator.py --mutations 1 --db-mode override --maxtemplates 2 --debug
 ```
 
 The `--start` parameter can be used with either database mode to control which prompts from your prompt file are used for generation. This is particularly useful when:
